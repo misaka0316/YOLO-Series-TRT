@@ -64,5 +64,3 @@ int main(int argc, char** argv) {
     return -1;
   }
 }
-
-//export CUDA_MODULE_LOADING=LAZY
