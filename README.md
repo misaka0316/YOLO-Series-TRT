@@ -317,10 +317,5 @@ If you use this repo in your publication, please cite it by using the following 
 }
 ```
 
-## Sponsor
-
-Buy me a cup of coffee
-
-![](src/Sponsor.png)
 
 # YOLO-Series-TRT
