@@ -1,7 +1,0 @@
-{
-    "model_path": "../../../engine/policeman.plan",
-    "image_path": "/home/misaka/Desktop/misaka/datasets/police_2nc_data/police_data_train_2class_0423/images/police_train/1685488676792000_1685488616214325_30_LSJE36093NS120299_1685488636799265.jpg",
-    "output_image_path" : "./build/output.jpg"
-
-  }
-  

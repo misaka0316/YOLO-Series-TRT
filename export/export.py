@@ -137,6 +137,15 @@ class EngineBuilder:
                 sys.exit(1)
         inputs = [self.network.get_input(i) for i in range(self.network.num_inputs)]
         outputs = [self.network.get_output(i) for i in range(self.network.num_outputs)]
+        # Print input and output shapes
+        print("Inputs:")
+        for input_tensor in inputs:
+            print(f"Name: {input_tensor.name}, Shape: {input_tensor.shape}, Dtype: {input_tensor.dtype}")
+        
+        print("Outputs:")
+        for output_tensor in outputs:
+            print(f"Name: {output_tensor.name}, Shape: {output_tensor.shape}, Dtype: {output_tensor.dtype}")
+    
         print("Network Description")
         for input in inputs:
             self.batch_size = input.shape[0]

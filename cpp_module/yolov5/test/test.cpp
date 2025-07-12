@@ -44,11 +44,11 @@ int main(int argc, char** argv) {
     cv::Mat img;
     img = cv::imread(image_path);
 
-    // warmup 
-    for (int num = 0; num < 2; num++) {
-      yolo.Infer(img.cols, img.rows, img.channels(), img.data, Boxes, ClassIndexs, BboxNum);
-      //等待5ms
-    }
+    // // warmup 
+    // for (int num = 0; num < 2; num++) {
+    //   yolo.Infer(img.cols, img.rows, img.channels(), img.data, Boxes, ClassIndexs, BboxNum);
+    //   //等待5ms
+    // }
     auto start = std::chrono::system_clock::now();
 
     yolo.Infer(img.cols, img.rows, img.channels(), img.data, Boxes, ClassIndexs, BboxNum);
@@ -57,7 +57,8 @@ int main(int argc, char** argv) {
     std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
     
     yolo.draw_objects(img, Boxes, ClassIndexs, BboxNum);
-
+    //打印完成推理
+    std::cout << "--> Inference completed!" << std::endl;
   } else {
     std::cerr << "--> arguments not right!" << std::endl;
     std::cerr << "--> yolo -config_path ./config.json" << std::endl;

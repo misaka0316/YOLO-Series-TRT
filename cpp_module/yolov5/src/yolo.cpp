@@ -2,7 +2,7 @@
 #include "yolo.hpp"
 #include "comm.hpp"
 
-void Yolo::Init(char* model_path,char* output_image_path, bool is_log = true){
+void Yolo::Init(char* model_path,char* output_image_path, bool is_log = false) {
   CHECK(cudaSetDevice(DEVICE));
   //验证模型路径是否正确
   ifstream ifile(model_path, ios::in | ios::binary);
@@ -12,6 +12,9 @@ void Yolo::Init(char* model_path,char* output_image_path, bool is_log = true){
   }
   Yolo::model_path = model_path;
   Yolo::output_image_path = output_image_path;
+  //打印模型路径 输出路径
+  cout << "model_path: " << model_path << endl;
+  cout << "output_image_path: " << output_image_path << endl;
   Yolo::is_log = is_log;
 }
 
@@ -259,6 +262,14 @@ void Yolo::Infer(
     Boxes[i * 4 + 3] = y1 - y0;
     ClassIndexs[i] = det_classes[i];
   }
+  
+  if (num_dets[0] > 0) {
+    cout << "Detections found: " << num_dets[0] << endl;
+  } else {
+    cout << "No detections found." << endl;
+  }
+
+
   //打印Boxes 和class
   if (Yolo::is_log) {
     for (size_t i = 0; i < num_dets[0]; i++) {
