@@ -1,67 +1,120 @@
+/**
+ * @file yolo.cpp
+ * @brief Implementation of the Yolo class for object detection using TensorRT.
+ * 
+ * This file contains the implementation of the Yolo class, which provides methods
+ * for initializing the YOLO model, preprocessing input images, performing inference,
+ * and postprocessing the results. The class is designed to work with TensorRT for
+ * efficient inference on NVIDIA GPUs.
+ * 
+ * Features:
+ * - Model initialization and engine loading.
+ * - Image preprocessing with letterbox resizing.
+ * - Conversion of images to blob format for inference.
+ * - Object detection and bounding box drawing.
+ * - Resource management and cleanup.
+ * 
+ * Dependencies:
+ * - OpenCV for image processing.
+ * - CUDA and TensorRT for GPU-based inference.
+ * 
+ * Usage:
+ * 1. Initialize the Yolo object with the model path and output image path.
+ * 2. Load the TensorRT engine using `load_engine()`.
+ * 3. Perform inference on input images using `Infer()`.
+ * 4. Draw detected objects on the image using `draw_objects()`.
+ * 
+ * @author [misaka]
+ * @date [Date]
+ */
 
 #include "yolo.hpp"
 #include "comm.hpp"
 
 void Yolo::Init(char* model_path,char* output_image_path, bool is_log = false) {
-  CHECK(cudaSetDevice(DEVICE));
-  //验证模型路径是否正确
-  ifstream ifile(model_path, ios::in | ios::binary);
-  if (!ifile) {
-    cout << "read serialized file failed\n";
-    std::abort(); 
-  }
-  Yolo::model_path = model_path;
-  Yolo::output_image_path = output_image_path;
-  //打印模型路径 输出路径
-  cout << "model_path: " << model_path << endl;
-  cout << "output_image_path: " << output_image_path << endl;
-  Yolo::is_log = is_log;
+    //查看CUDA设备是否可用
+    // CHECK(cudaSetDevice(DEVICE));
+
+    // 获取可用的CUDA设备数量
+    int device_count = 0;
+    cudaGetDeviceCount(&device_count);
+    if (device_count == 0) {
+      cout << "No CUDA devices available.\n";
+      std::abort();
+    }
+
+    // 打印可用的CUDA设备信息
+    cout << "Available CUDA devices: " << device_count << endl;
+    for (int i = 0; i < device_count; ++i) {
+      cudaDeviceProp device_prop;
+      cudaGetDeviceProperties(&device_prop, i);
+      cout << "Device " << i << ": " << device_prop.name << endl;
+    }
+
+    // 设置默认设备为0
+    cudaSetDevice(0);
+    cout << "Using CUDA device 0.\n";
+
+    //验证模型路径是否正确
+    ifstream ifile(model_path, ios::in | ios::binary);
+    if (!ifile) {
+      cout << "read serialized file failed\n";
+      std::abort(); 
+    }
+
+    Yolo::model_path = model_path;
+    Yolo::output_image_path = output_image_path;
+
+    //打印模型路径 输出路径
+    cout << "model_path: " << model_path << endl;
+    cout << "output_image_path: " << output_image_path << endl;
+    Yolo::is_log = is_log;
 }
 
 float Yolo::letterbox(
-    const cv::Mat& image,
-    cv::Mat& out_image,
-    const cv::Size& new_shape = cv::Size(640, 640),
-    int stride = 32,
-    const cv::Scalar& color = cv::Scalar(114, 114, 114),
-    bool fixed_shape = false,
-    bool scale_up = true) {
-  cv::Size shape = image.size();
-  float r = std::min(
-      (float)new_shape.height / (float)shape.height, (float)new_shape.width / (float)shape.width);
-  if (!scale_up) {
-    r = std::min(r, 1.0f);
-  }
+	const cv::Mat& image,
+	cv::Mat& out_image,
+	const cv::Size& new_shape = cv::Size(640, 640),
+	int stride = 32,
+	const cv::Scalar& color = cv::Scalar(114, 114, 114),
+	bool fixed_shape = false,
+	bool scale_up = true) {
+	cv::Size shape = image.size();
+	float r = std::min(
+		(float)new_shape.height / (float)shape.height, (float)new_shape.width / (float)shape.width);
+	if (!scale_up) {
+		r = std::min(r, 1.0f);
+	}
 
-  int newUnpad[2]{
-      (int)std::round((float)shape.width * r), (int)std::round((float)shape.height * r)};
+	int newUnpad[2]{
+		(int)std::round((float)shape.width * r), (int)std::round((float)shape.height * r)};
 
-  cv::Mat tmp;
-  if (shape.width != newUnpad[0] || shape.height != newUnpad[1]) {
-    cv::resize(image, tmp, cv::Size(newUnpad[0], newUnpad[1]));
-    // cv::resize(image, tmp, cv::Size(640, 640));
-  } else {
-    tmp = image.clone();
-  }
+	cv::Mat tmp;
+	if (shape.width != newUnpad[0] || shape.height != newUnpad[1]) {
+		cv::resize(image, tmp, cv::Size(newUnpad[0], newUnpad[1]));
+		// cv::resize(image, tmp, cv::Size(640, 640));
+	} else {
+		tmp = image.clone();
+	}
 
-  float dw = new_shape.width - newUnpad[0];
-  float dh = new_shape.height - newUnpad[1];
+	float dw = new_shape.width - newUnpad[0];
+	float dh = new_shape.height - newUnpad[1];
 
-  if (!fixed_shape) {
-    dw = (float)((int)dw % stride);
-    dh = (float)((int)dh % stride);
-  }
+	if (!fixed_shape) {
+		dw = (float)((int)dw % stride);
+		dh = (float)((int)dh % stride);
+	}
 
-  dw /= 2.0f;
-  dh /= 2.0f;
+	dw /= 2.0f;
+	dh /= 2.0f;
 
-  int top = int(std::round(dh - 0.1f));
-  int bottom = int(std::round(dh + 0.1f));
-  int left = int(std::round(dw - 0.1f));
-  int right = int(std::round(dw + 0.1f));
-  cv::copyMakeBorder(tmp, out_image, top, bottom, left, right, cv::BORDER_CONSTANT, color);
+	int top = int(std::round(dh - 0.1f));
+	int bottom = int(std::round(dh + 0.1f));
+	int left = int(std::round(dw - 0.1f));
+	int right = int(std::round(dw + 0.1f));
+	cv::copyMakeBorder(tmp, out_image, top, bottom, left, right, cv::BORDER_CONSTANT, color);
 
-  return 1.0f / r;
+	return 1.0f / r;
 }
 
 float* Yolo::blobFromImage(cv::Mat& img) {
@@ -96,100 +149,101 @@ void Yolo::draw_objects(const cv::Mat& img, float* Boxes, int* ClassIndexs, int*
 }
 
 void Yolo::load_engine() {
-  ifstream ifile(Yolo::model_path, ios::in | ios::binary);
-  // if (!ifile) {
-  //   cout << "read serialized file failed\n";
-  //   std::abort();
-  // }
+	ifstream ifile(Yolo::model_path, ios::in | ios::binary);
+	if (!ifile) {
+		cout << "read serialized file failed\n";
+		std::abort();
+	}
 
-  ifile.seekg(0, ios::end);
-  const int mdsize = ifile.tellg();
-  ifile.clear();
-  ifile.seekg(0, ios::beg);
-  vector<char> buf(mdsize);
-  ifile.read(&buf[0], mdsize);
-  ifile.close();
-  if (Yolo::is_log) {
-    cout << "model size: " << mdsize << endl;
-  }
-  
-  runtime = nvinfer1::createInferRuntime(gLogger);
-  initLibNvInferPlugins(&gLogger, "");
-  engine = runtime->deserializeCudaEngine((void*)&buf[0], mdsize, nullptr);
-  auto in_dims = engine->getBindingDimensions(engine->getBindingIndex("images"));
-  iH = in_dims.d[2];
-  iW = in_dims.d[3];
-  in_size = 1;
-  for (int j = 0; j < in_dims.nbDims; j++) {
-    in_size *= in_dims.d[j];
-  }
-  auto out_dims1 = engine->getBindingDimensions(engine->getBindingIndex("num"));
-  out_size1 = 1;
-  for (int j = 0; j < out_dims1.nbDims; j++) {
-    out_size1 *= out_dims1.d[j];
-  }
-  auto out_dims2 = engine->getBindingDimensions(engine->getBindingIndex("boxes"));
-  out_size2 = 1;
-  for (int j = 0; j < out_dims2.nbDims; j++) {
-    out_size2 *= out_dims2.d[j];
-  }
-  auto out_dims3 = engine->getBindingDimensions(engine->getBindingIndex("scores"));
-  out_size3 = 1;
-  for (int j = 0; j < out_dims3.nbDims; j++) {
-    out_size3 *= out_dims3.d[j];
-  }
-  auto out_dims4 = engine->getBindingDimensions(engine->getBindingIndex("classes"));
-  out_size4 = 1;
-  for (int j = 0; j < out_dims4.nbDims; j++) {
-    out_size4 *= out_dims4.d[j];
-  }
-  if (Yolo::is_log) {
-    //打印输出维度
-    cout << "input size: " << in_size << endl;
-    cout << "output num size: " << out_size1 << " "<< out_size2 <<" "<< out_size3 <<" "<< out_size4 << endl;
-  }
+	ifile.seekg(0, ios::end);
+	const int mdsize = ifile.tellg();
+	ifile.clear();
+	ifile.seekg(0, ios::beg);
+	vector<char> buf(mdsize);
+	ifile.read(&buf[0], mdsize);
+	ifile.close();
+	if (Yolo::is_log) {
+		cout << "model size: " << mdsize << endl;
+	}
+	
+	runtime = nvinfer1::createInferRuntime(gLogger);
+	initLibNvInferPlugins(&gLogger, "");
+	engine = runtime->deserializeCudaEngine((void*)&buf[0], mdsize, nullptr);
+	auto in_dims = engine->getBindingDimensions(engine->getBindingIndex("images"));
 
-  context = engine->createExecutionContext();
-  if (!context) {
-    cout << "create execution context failed\n";
-    std::abort();
-  }
+	iH = in_dims.d[2];
+	iW = in_dims.d[3];
+	in_size = 1;
+	for (int j = 0; j < in_dims.nbDims; j++) {
+		in_size *= in_dims.d[j];
+	}
+	auto out_dims1 = engine->getBindingDimensions(engine->getBindingIndex("num"));
+	out_size1 = 1;
+	for (int j = 0; j < out_dims1.nbDims; j++) {
+		out_size1 *= out_dims1.d[j];
+	}
+	auto out_dims2 = engine->getBindingDimensions(engine->getBindingIndex("boxes"));
+	out_size2 = 1;
+	for (int j = 0; j < out_dims2.nbDims; j++) {
+		out_size2 *= out_dims2.d[j];
+	}
+	auto out_dims3 = engine->getBindingDimensions(engine->getBindingIndex("scores"));
+	out_size3 = 1;
+	for (int j = 0; j < out_dims3.nbDims; j++) {
+		out_size3 *= out_dims3.d[j];
+	}
+	auto out_dims4 = engine->getBindingDimensions(engine->getBindingIndex("classes"));
+	out_size4 = 1;
+	for (int j = 0; j < out_dims4.nbDims; j++) {
+		out_size4 *= out_dims4.d[j];
+	}
+	if (Yolo::is_log) {
+		//打印输出维度
+		cout << "input size: " << in_size << endl;
+		cout << "output num size: " << out_size1 << " "<< out_size2 <<" "<< out_size3 <<" "<< out_size4 << endl;
+	}
 
-  cudaError_t state;
-  state = cudaMalloc(&buffs[0], in_size * sizeof(float));
-  if (state) {
-    cout << "allocate memory failed\n";
-    std::abort();
-  }
-  state = cudaMalloc(&buffs[1], out_size1 * sizeof(int));
-  if (state) {
-    cout << "allocate memory failed\n";
-    std::abort();
-  }
+	context = engine->createExecutionContext();
+	if (!context) {
+		cout << "create execution context failed\n";
+		std::abort();
+	}
 
-  state = cudaMalloc(&buffs[2], out_size2 * sizeof(float));
-  if (state) {
-    cout << "allocate memory failed\n";
-    std::abort();
-  }
+	cudaError_t state;
+	state = cudaMalloc(&buffs[0], in_size * sizeof(float));
+	if (state) {
+		cout << "allocate memory failed\n";
+		std::abort();
+	}
+	state = cudaMalloc(&buffs[1], out_size1 * sizeof(int));
+	if (state) {
+		cout << "allocate memory failed\n";
+		std::abort();
+	}
 
-  state = cudaMalloc(&buffs[3], out_size3 * sizeof(float));
-  if (state) {
-    cout << "allocate memory failed\n";
-    std::abort();
-  }
+	state = cudaMalloc(&buffs[2], out_size2 * sizeof(float));
+	if (state) {
+		cout << "allocate memory failed\n";
+		std::abort();
+	}
 
-  state = cudaMalloc(&buffs[4], out_size4 * sizeof(int));
-  if (state) {
-    cout << "allocate memory failed\n";
-    std::abort();
-  }
+	state = cudaMalloc(&buffs[3], out_size3 * sizeof(float));
+	if (state) {
+		cout << "allocate memory failed\n";
+		std::abort();
+	}
 
-  state = cudaStreamCreate(&stream);
-  if (state) {
-    cout << "create stream failed\n";
-    std::abort();
-  }
+	state = cudaMalloc(&buffs[4], out_size4 * sizeof(int));
+	if (state) {
+		cout << "allocate memory failed\n";
+		std::abort();
+	}
+
+	state = cudaStreamCreate(&stream);
+	if (state) {
+		cout << "create stream failed\n";
+		std::abort();
+	}
 }
 
 void Yolo::Infer(
@@ -200,96 +254,118 @@ void Yolo::Infer(
     float* Boxes,
     int* ClassIndexs,
     int* BboxNum) {
-  cv::Mat img(aHeight, aWidth, CV_MAKETYPE(CV_8U, aChannel), aBytes);
-  cv::Mat pr_img;
-  float scale = letterbox(img, pr_img, {iW, iH}, 32, {114, 114, 114}, true);
-  cv::cvtColor(pr_img, pr_img, cv::COLOR_BGR2RGB);
-  float* blob = blobFromImage(pr_img);
+	cv::Mat img(aHeight, aWidth, CV_MAKETYPE(CV_8U, aChannel), aBytes);
+	cv::Mat pr_img;
+	float scale = letterbox(img, pr_img, {iW, iH}, 32, {114, 114, 114}, true);
+	cv::cvtColor(pr_img, pr_img, cv::COLOR_BGR2RGB);
+	float* blob = blobFromImage(pr_img);
 
-  static int* num_dets = new int[out_size1];
-  static float* det_boxes = new float[out_size2];
-  static float* det_scores = new float[out_size3];
-  static int* det_classes = new int[out_size4];
+	static int* num_dets = new int[out_size1];
+	static float* det_boxes = new float[out_size2];
+	static float* det_scores = new float[out_size3];
+	static int* det_classes = new int[out_size4];
 
-  cudaError_t state =
-      cudaMemcpyAsync(buffs[0], &blob[0], in_size * sizeof(float), cudaMemcpyHostToDevice, stream);
-  if (state) {
-    cout << "transmit to device failed\n";
-    std::abort();
-  }
-  context->enqueueV2(&buffs[0], stream, nullptr);
-  state =
-      cudaMemcpyAsync(num_dets, buffs[1], out_size1 * sizeof(int), cudaMemcpyDeviceToHost, stream);
-  if (state) {
-    cout << "transmit to host failed \n";
-    std::abort();
-  }
-  state = cudaMemcpyAsync(
-      det_boxes, buffs[2], out_size2 * sizeof(float), cudaMemcpyDeviceToHost, stream);
-  if (state) {
-    cout << "transmit to host failed \n";
-    std::abort();
-  }
-  state = cudaMemcpyAsync(
-      det_scores, buffs[3], out_size3 * sizeof(float), cudaMemcpyDeviceToHost, stream);
-  if (state) {
-    cout << "transmit to host failed \n";
-    std::abort();
-  }
-  state = cudaMemcpyAsync(
-      det_classes, buffs[4], out_size4 * sizeof(int), cudaMemcpyDeviceToHost, stream);
-  if (state) {
-    cout << "transmit to host failed \n";
-    std::abort();
-  }
-  BboxNum[0] = num_dets[0];
-  int img_w = img.cols;
-  int img_h = img.rows;
-  int x_offset = (iW * scale - img_w) / 2;
-  int y_offset = (iH * scale - img_h) / 2;
-  for (size_t i = 0; i < num_dets[0]; i++) {
-    float x0 = (det_boxes[i * 4]) * scale - x_offset;
-    float y0 = (det_boxes[i * 4 + 1]) * scale - y_offset;
-    float x1 = (det_boxes[i * 4 + 2]) * scale - x_offset;
-    float y1 = (det_boxes[i * 4 + 3]) * scale - y_offset;
-    x0 = std::max(std::min(x0, (float)(img_w - 1)), 0.f);
-    y0 = std::max(std::min(y0, (float)(img_h - 1)), 0.f);
-    x1 = std::max(std::min(x1, (float)(img_w - 1)), 0.f);
-    y1 = std::max(std::min(y1, (float)(img_h - 1)), 0.f);
-    Boxes[i * 4] = x0;
-    Boxes[i * 4 + 1] = y0;
-    Boxes[i * 4 + 2] = x1 - x0;
-    Boxes[i * 4 + 3] = y1 - y0;
-    ClassIndexs[i] = det_classes[i];
-  }
-  
-  if (num_dets[0] > 0) {
-    cout << "Detections found: " << num_dets[0] << endl;
-  } else {
-    cout << "No detections found." << endl;
-  }
+	context->setTensorAddress("images", buffs[0]);
+	context->setTensorAddress("num", buffs[1]);
+	context->setTensorAddress("boxes", buffs[2]);
+	context->setTensorAddress("scores", buffs[3]);
+	context->setTensorAddress("classes", buffs[4]);
 
+	cudaError_t state =
+		cudaMemcpyAsync(buffs[0], &blob[0], in_size * sizeof(float), cudaMemcpyHostToDevice, stream);
+	if (state) {
+		cout << "transmit to device failed\n";
+		std::abort();
+	}
 
-  //打印Boxes 和class
-  if (Yolo::is_log) {
-    for (size_t i = 0; i < num_dets[0]; i++) {
-      cout << "Boxes: " << Boxes[i * 4] << " " << Boxes[i * 4 + 1] << " " << Boxes[i * 4 + 2] << " "
-          << Boxes[i * 4 + 3] << " "
-          << "ClassIndexs: " << ClassIndexs[i] << endl;
-    }
-    delete blob;
-  }
+	bool result = context->enqueueV3(stream);
+	if (!result) {
+		cout << "Inference failed\n";
+		std::abort();
+	}
+
+	state =
+		cudaMemcpyAsync(num_dets, buffs[1], out_size1 * sizeof(int), cudaMemcpyDeviceToHost, stream);
+	if (state) {
+		cout << "transmit to host failed \n";
+		std::abort();
+	}
+	state = cudaMemcpyAsync(
+		det_boxes, buffs[2], out_size2 * sizeof(float), cudaMemcpyDeviceToHost, stream);
+	if (state) {
+		cout << "transmit to host failed \n";
+		std::abort();
+	}
+	state = cudaMemcpyAsync(
+		det_scores, buffs[3], out_size3 * sizeof(float), cudaMemcpyDeviceToHost, stream);
+	if (state) {
+		cout << "transmit to host failed \n";
+		std::abort();
+	}
+	state = cudaMemcpyAsync(
+		det_classes, buffs[4], out_size4 * sizeof(int), cudaMemcpyDeviceToHost, stream);
+	if (state) {
+		cout << "transmit to host failed \n";
+		std::abort();
+	}
+	BboxNum[0] = num_dets[0];
+	int img_w = img.cols;
+	int img_h = img.rows;
+	int x_offset = (iW * scale - img_w) / 2;
+	int y_offset = (iH * scale - img_h) / 2;
+	for (size_t i = 0; i < num_dets[0]; i++) {
+		float x0 = (det_boxes[i * 4]) * scale - x_offset;
+		float y0 = (det_boxes[i * 4 + 1]) * scale - y_offset;
+		float x1 = (det_boxes[i * 4 + 2]) * scale - x_offset;
+		float y1 = (det_boxes[i * 4 + 3]) * scale - y_offset;
+		x0 = std::max(std::min(x0, (float)(img_w - 1)), 0.f);
+		y0 = std::max(std::min(y0, (float)(img_h - 1)), 0.f);
+		x1 = std::max(std::min(x1, (float)(img_w - 1)), 0.f);
+		y1 = std::max(std::min(y1, (float)(img_h - 1)), 0.f);
+		Boxes[i * 4] = x0;
+		Boxes[i * 4 + 1] = y0;
+		Boxes[i * 4 + 2] = x1 - x0;
+		Boxes[i * 4 + 3] = y1 - y0;
+		ClassIndexs[i] = det_classes[i];
+	}
+	
+	if (num_dets[0] > 0) {
+		cout << "Detections found: " << num_dets[0] << endl;
+	} else {
+		cout << "No detections found." << endl;
+	}
+
+	//打印Boxes 和class
+	if (Yolo::is_log) {
+		for (size_t i = 0; i < num_dets[0]; i++) {
+		cout << "Boxes: " << Boxes[i * 4] << " " << Boxes[i * 4 + 1] << " " << Boxes[i * 4 + 2] << " "
+			<< Boxes[i * 4 + 3] << " "
+			<< "ClassIndexs: " << ClassIndexs[i] << endl;
+		}
+		delete blob;
+	}
 }
 
 Yolo::~Yolo() {
-  cudaStreamSynchronize(stream);
-  cudaFree(buffs[0]);
-  cudaFree(buffs[1]);
-  cudaFree(buffs[2]);
-  cudaFree(buffs[3]);
-  cudaFree(buffs[4]);
-  cudaStreamDestroy(stream);
-  context->destroy();
-  engine->destroy();
-  runtime->destroy();
+  // cudaStreamSynchronize(stream);
+  // if (buffs[0]) cudaFree(buffs[0]);
+  // if (buffs[1]) cudaFree(buffs[1]);
+  // if (buffs[2]) cudaFree(buffs[2]);
+  // if (buffs[3]) cudaFree(buffs[3]);
+  // if (buffs[4]) cudaFree(buffs[4]);
+  // if (stream) cudaStreamDestroy(stream);
+  // if (context) context->destroy();
+  // if (engine) engine->destroy();
+  // if (runtime) runtime->destroy();
+
+  // cudaStreamSynchronize(stream);
+  // cudaFree(buffs[0]);
+  // cudaFree(buffs[1]);
+  // cudaFree(buffs[2]);
+  // cudaFree(buffs[3]);
+  // cudaFree(buffs[4]);
+  // cudaStreamDestroy(stream);
+  // context->destroy();
+  // engine->destroy();
+  // runtime->destroy();
 }
