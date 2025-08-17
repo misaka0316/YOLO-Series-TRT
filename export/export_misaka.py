@@ -137,18 +137,22 @@ class EngineBuilder:
                 sys.exit(1)
         
 
-
         inputs = [self.network.get_input(i) for i in range(self.network.num_inputs)]
         outputs = [self.network.get_output(i) for i in range(self.network.num_outputs)]
         print("Network Description")
 
-        # #重新设置输入形状
-        # for input in inputs:
-        #     # 设置动态形状：将 batch 维度设为 -1 表示动态
-        #     profile = self.builder.create_optimization_profile()
-        #     min_shape = [1] + list(input.shape[1:])  # 最小尺寸
-        #     opt_shape = [8] + list(input.shape[1:])  # 推荐尺寸
-        #     max_shape = [32] + list(input.shape[1:]) # 最大尺寸
+        #重新设置输入形状
+        for input in inputs:
+            # 设置动态形状：将 batch 维度设为 -1 表示动态
+            profile = self.builder.create_optimization_profile()
+            min_shape = [1] + list(input.shape[1:])  # 最小尺寸
+            opt_shape = [8] + list(input.shape[1:])  # 推荐尺寸
+            max_shape = [32] + list(input.shape[1:]) # 最大尺寸
+
+            # 设置动态形状
+            profile.set_shape(input.name, min=min_shape, opt=opt_shape, max=max_shape)
+            self.config.add_optimization_profile(profile)
+            print(f"Input '{input.name}' supports dynamic batch size: min={min_shape}, opt={opt_shape}, max={max_shape}")
 
         #     profile.set_shape_input(input.name, min=min_shape, opt=opt_shape, max=max_shape)
         #     self.config.add_optimization_profile(profile)
@@ -161,7 +165,7 @@ class EngineBuilder:
             print("Input '{}' with shape {} and dtype {}".format(input.name, input.shape, input.dtype))
         for output in outputs:
             print("Output '{}' with shape {} and dtype {}".format(output.name, output.shape, output.dtype))
-        assert self.batch_size > 0
+        # assert self.batch_size > 0
         # self.builder.max_batch_size = self.batch_size  # This no effect for networks created with explicit batch dimension mode. Also DEPRECATED.
 
         if v10:
@@ -364,7 +368,7 @@ if __name__ == "__main__":
                         help="The conf threshold for the nms, default: 0.4")
     parser.add_argument("--iou_thres", default=0.5, type=float,
                         help="The iou threshold for the nms, default: 0.5")
-    parser.add_argument("--max_det", default=100, type=int,
+    parser.add_argument("--max_det", default=200, type=int,
                         help="The total num for results, default: 100")
     parser.add_argument("--v8", default=False, action="store_true",
                         help="use yolov8/9 model, default: False")
