@@ -26,8 +26,9 @@ int main(int argc, char** argv) {
 
     // Extract model path and image path from JSON
     std::string model_path = config.value("model_path", "");
-    std::string image_path = config.value("image_path", "");
-    std::string output_image_path = config.value("output_image_path", "");
+    std::string source_path = config.value("source_path", "");
+    std::string output_path = config.value("output_path", "");
+    std::string test_flag = config.value("test_flag", "");
 
     if (model_path.empty() || image_path.empty()) {
       std::cerr << "Invalid configuration: model_path or image_path is missing" << std::endl;
@@ -39,24 +40,31 @@ int main(int argc, char** argv) {
     int* ClassIndexs = new int[1000];
 
     Yolo yolo;
-    yolo.Init(const_cast<char*>(model_path.c_str()),const_cast<char*>(output_image_path.c_str()), true); // Initialize the Yolo object with model path and logging enabled
+    yolo.Init(const_cast<char*>(model_path.c_str()),const_cast<char*>(output_path.c_str()), true); // Initialize the Yolo object with model path and logging enabled
     yolo.load_engine(); // Load the TensorRT engine
-    cv::Mat img;
-    img = cv::imread(image_path);
 
-    // // warmup 
-    // for (int num = 0; num < 2; num++) {
-    //   yolo.Infer(img.cols, img.rows, img.channels(), img.data, Boxes, ClassIndexs, BboxNum);
-    //   //等待5ms
-    // }
-    auto start = std::chrono::system_clock::now();
-
-    yolo.Infer(img.cols, img.rows, img.channels(), img.data, Boxes, ClassIndexs, BboxNum);
-
-    auto end = std::chrono::system_clock::now();
-    std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
     
-    yolo.draw_objects(img, Boxes, ClassIndexs, BboxNum);
+    // cv::Mat img;
+    // img = cv::imread(image_path);
+
+    yolo.Infer(source_path);
+
+    if(test_flag == "true"){
+
+    for (int num = 0; num < 2; num++) {
+      yolo.Infer(img.cols, img.rows, img.channels(), img.data, Boxes, ClassIndexs, BboxNum);
+    }
+
+      auto start = std::chrono::system_clock::now();
+
+      yolo.Infer(img.cols, img.rows, img.channels(), img.data, Boxes, ClassIndexs, BboxNum);
+
+      auto end = std::chrono::system_clock::now();
+      std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
+      
+      yolo.draw_objects(img, Boxes, ClassIndexs, BboxNum);
+    }
+
     //打印完成推理
     std::cout << "--> Inference completed!" << std::endl;
   } else {

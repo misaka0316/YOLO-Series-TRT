@@ -67,6 +67,13 @@ class Logger : public ILogger {
 		}
    };
 
+struct PreprocessedImage {
+	cv::Mat original_img;  // 原始图像
+	cv::Mat processed_img; // 预处理后的图像
+	float scale;           // 缩放比例
+	float* blob;           // 转换后的 blob 数据
+};
+
 class Yolo {
     public:
 		Yolo() = default;
@@ -81,15 +88,9 @@ class Yolo {
 			bool scale_up);
 		float* blobFromImage(cv::Mat& img);
 		void draw_objects(const cv::Mat& img, float* Boxes, int* ClassIndexs, int* BboxNum);
-		void Init(char* model_path, char* output_image_path, bool is_log);
-		void Infer(
-			int aWidth,
-			int aHeight,
-			int aChannel,
-			unsigned char* aBytes,
-			float* Boxes,
-			int* ClassIndexs,
-			int* BboxNum);
+		void Init(char* model_path, char* output_path, bool is_log);
+		void Infer(std::string source_path);
+		PreprocessedImage  PreprocessedImage(int width, int height, int channel, unsigned char* data, int target_width, int target_height);
 		~Yolo();
    
     private:
@@ -98,11 +99,22 @@ class Yolo {
 		nvinfer1::IExecutionContext* context = nullptr;
 		cudaStream_t stream = nullptr;
 		void* buffs[5];
-		int iH, iW, in_size, out_size1, out_size2, out_size3, out_size4;
+		int iB, iC, iH, iW, in_size, out_size1, out_size2, out_size3, out_size4;
 		Logger gLogger;
 		std::string model_path;
 		std::string output_image_path;
 		bool is_log = false;
+		std::vector<PreprocessedImage> preprocessed_images;
+
 };
+
+
+int aWidth,
+int aHeight,
+int aChannel,
+unsigned char* aBytes,
+float* Boxes,
+int* ClassIndexs,
+int* BboxNum
 
 #endif // YOLO_HPP

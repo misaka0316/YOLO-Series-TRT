@@ -31,7 +31,7 @@
 #include "yolo.hpp"
 #include "comm.hpp"
 
-void Yolo::Init(char* model_path,char* output_image_path, bool is_log = false) {
+void Yolo::Init(char* model_path,char* output_path, bool is_log = false) {
     //查看CUDA设备是否可用
     // CHECK(cudaSetDevice(DEVICE));
 
@@ -171,8 +171,14 @@ void Yolo::load_engine() {
 	engine = runtime->deserializeCudaEngine((void*)&buf[0], mdsize, nullptr);
 	auto in_dims = engine->getBindingDimensions(engine->getBindingIndex("images"));
 
+	iB = in_dims.d[0];
+	iC = in_dims.d[1];
 	iH = in_dims.d[2];
 	iW = in_dims.d[3];
+
+	//打印输入维度
+	cout << "input dims: " << iB << " " << iC << " " << iH << " " << iW << endl;
+
 	in_size = 1;
 	for (int j = 0; j < in_dims.nbDims; j++) {
 		in_size *= in_dims.d[j];
@@ -244,16 +250,64 @@ void Yolo::load_engine() {
 		cout << "create stream failed\n";
 		std::abort();
 	}
+
+	//打印buffs
+	cout << "buffs: " << in_size << " " << out_size1 << " " << out_size2 << " " << out_size3
+		<< " " << out_size4 << endl;
+	
 }
 
-void Yolo::Infer(
-    int aWidth,
-    int aHeight,
-    int aChannel,
-    unsigned char* aBytes,
-    float* Boxes,
-    int* ClassIndexs,
-    int* BboxNum) {
+
+	// 构造函数，自动完成预处理
+PreprocessedImage  Yolo::PreprocessedImage(int width, int height, int channel, unsigned char* data, int target_width, int target_height) {
+	// 创建原始图像
+	original_img = cv::Mat(height, width, CV_MAKETYPE(CV_8U, channel), data);
+
+	// 预处理：调整大小并填充
+	scale = letterbox(original_img, processed_img, {target_width, target_height}, 32, {114, 114, 114}, true);
+
+	// 转换为 RGB 格式
+	cv::cvtColor(processed_img, processed_img, cv::COLOR_BGR2RGB);
+
+	// 转换为 blob 数据
+	blob = blobFromImage(processed_img);
+}
+
+
+void Yolo::Infer(std::string source_path) {
+
+	// 判断source_path是图片还是文件夹路径
+	struct stat path_stat;
+	stat(source_path.c_str(), &path_stat);
+	bool is_directory = S_ISDIR(path_stat.st_mode);
+
+	if (is_directory) {
+		cout << "source_path is a directory." << endl;
+		// 处理文件夹中的所有图片
+		std::vector<std::string> image_files;
+		for (const auto& entry : std::filesystem::directory_iterator(source_path)) {
+			if (entry.is_regular_file()) {
+				std::string file_path = entry.path().string();
+				// cout << "Processing file: " << file_path << endl;
+				// 在这里可以调用推理处理每个文件
+				image_files.push_back(file_path);
+			}
+		}
+		
+
+	} else {
+		cout << "source_path is a file." << endl;
+		// // 处理单个图片文件
+		// cout << "Processing file: " << source_path << endl;
+		// // 在这里可以调用推理处理该文件
+		if (iB != 1) {
+			
+		}
+	}
+
+
+
+	//根据iB的大小创建
 	cv::Mat img(aHeight, aWidth, CV_MAKETYPE(CV_8U, aChannel), aBytes);
 	cv::Mat pr_img;
 	float scale = letterbox(img, pr_img, {iW, iH}, 32, {114, 114, 114}, true);
@@ -265,12 +319,33 @@ void Yolo::Infer(
 	static float* det_scores = new float[out_size3];
 	static int* det_classes = new int[out_size4];
 
+
+
+
+	cv::Mat img(aHeight, aWidth, CV_MAKETYPE(CV_8U, aChannel), aBytes);
+	cv::Mat pr_img;
+	float scale = letterbox(img, pr_img, {iW, iH}, 32, {114, 114, 114}, true);
+	cv::cvtColor(pr_img, pr_img, cv::COLOR_BGR2RGB);
+	float* blob = blobFromImage(pr_img);
+
+	static int* num_dets = new int[out_size1];
+	static float* det_boxes = new float[out_size2];
+	static float* det_scores = new float[out_size3];
+	static int* det_classes = new int[out_size4];
+
+
+
+
+
+
+
 	context->setTensorAddress("images", buffs[0]);
 	context->setTensorAddress("num", buffs[1]);
 	context->setTensorAddress("boxes", buffs[2]);
 	context->setTensorAddress("scores", buffs[3]);
 	context->setTensorAddress("classes", buffs[4]);
 
+	//移动输入数据到设备
 	cudaError_t state =
 		cudaMemcpyAsync(buffs[0], &blob[0], in_size * sizeof(float), cudaMemcpyHostToDevice, stream);
 	if (state) {
@@ -284,6 +359,10 @@ void Yolo::Infer(
 		std::abort();
 	}
 
+	//等待流完成
+	cudaStreamSynchronize(stream);
+
+	//取输出结果
 	state =
 		cudaMemcpyAsync(num_dets, buffs[1], out_size1 * sizeof(int), cudaMemcpyDeviceToHost, stream);
 	if (state) {
@@ -308,6 +387,9 @@ void Yolo::Infer(
 		cout << "transmit to host failed \n";
 		std::abort();
 	}
+
+
+	//转换输出结果
 	BboxNum[0] = num_dets[0];
 	int img_w = img.cols;
 	int img_h = img.rows;

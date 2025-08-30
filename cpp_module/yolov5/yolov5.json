@@ -1,7 +1,7 @@
 {
-    "model_path": "../../engine/policeman.plan",
-    "image_path": "../../images/4.jpg",
-    "output_image_path" : "./build/output1.jpg"
-
+    "model_path": "../../engine/last-2batch.plan",
+    "source_path": "../../images/4.jpg",
+    "output_image_path" : "./build/output1.jpg",
+    "test_flag": "fluse"
   }
   
