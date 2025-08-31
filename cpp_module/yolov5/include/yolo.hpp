@@ -74,6 +74,20 @@ struct PreprocessedImage {
 	float* blob;           // 转换后的 blob 数据
 };
 
+struct det_image{
+	int* num_dets;
+	float* det_boxes;
+	float* det_scores;
+	int* det_classes;
+}
+
+struct det_images{
+	float* Boxes = new float[4000];
+    int* BboxNum = new int[1];
+    int* ClassIndexs = new int[1000];
+}
+
+
 class Yolo {
     public:
 		Yolo() = default;
@@ -90,7 +104,8 @@ class Yolo {
 		void draw_objects(const cv::Mat& img, float* Boxes, int* ClassIndexs, int* BboxNum);
 		void Init(char* model_path, char* output_path, bool is_log);
 		void Infer(std::string source_path);
-		PreprocessedImage  PreprocessedImage(int width, int height, int channel, unsigned char* data, int target_width, int target_height);
+		PreprocessedImage  PreprocessedImage(std::string source_path);
+		det_image Yolo::inference(float* blob);
 		~Yolo();
    
     private:
@@ -105,16 +120,17 @@ class Yolo {
 		std::string output_image_path;
 		bool is_log = false;
 		std::vector<PreprocessedImage> preprocessed_images;
-
+		PreprocessedImage preprocessed_image;
+		det_images Yolo::processing(det_image output);
 };
 
 
-int aWidth,
-int aHeight,
-int aChannel,
-unsigned char* aBytes,
-float* Boxes,
-int* ClassIndexs,
-int* BboxNum
+// int aWidth,
+// int aHeight,
+// int aChannel,
+// unsigned char* aBytes,
+// float* Boxes,
+// int* ClassIndexs,
+// int* BboxNum
 
 #endif // YOLO_HPP

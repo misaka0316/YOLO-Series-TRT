@@ -35,9 +35,9 @@ int main(int argc, char** argv) {
       return -1;
     }
 
-    float* Boxes = new float[4000];
-    int* BboxNum = new int[1];
-    int* ClassIndexs = new int[1000];
+    // float* Boxes = new float[4000];
+    // int* BboxNum = new int[1];
+    // int* ClassIndexs = new int[1000];
 
     Yolo yolo;
     yolo.Init(const_cast<char*>(model_path.c_str()),const_cast<char*>(output_path.c_str()), true); // Initialize the Yolo object with model path and logging enabled

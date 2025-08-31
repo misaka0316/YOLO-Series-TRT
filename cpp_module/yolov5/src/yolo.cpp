@@ -35,6 +35,7 @@ void Yolo::Init(char* model_path,char* output_path, bool is_log = false) {
     //查看CUDA设备是否可用
     // CHECK(cudaSetDevice(DEVICE));
 
+	Yolo::is_log = is_log;
     // 获取可用的CUDA设备数量
     int device_count = 0;
     cudaGetDeviceCount(&device_count);
@@ -44,6 +45,7 @@ void Yolo::Init(char* model_path,char* output_path, bool is_log = false) {
     }
 
     // 打印可用的CUDA设备信息
+	if (Yolo::is_log)
     cout << "Available CUDA devices: " << device_count << endl;
     for (int i = 0; i < device_count; ++i) {
       cudaDeviceProp device_prop;
@@ -53,6 +55,7 @@ void Yolo::Init(char* model_path,char* output_path, bool is_log = false) {
 
     // 设置默认设备为0
     cudaSetDevice(0);
+	if (Yolo::is_log)
     cout << "Using CUDA device 0.\n";
 
     //验证模型路径是否正确
@@ -66,9 +69,10 @@ void Yolo::Init(char* model_path,char* output_path, bool is_log = false) {
     Yolo::output_image_path = output_image_path;
 
     //打印模型路径 输出路径
-    cout << "model_path: " << model_path << endl;
-    cout << "output_image_path: " << output_image_path << endl;
-    Yolo::is_log = is_log;
+	if (Yolo::is_log){
+    	cout << "model_path: " << model_path << endl;
+    	cout << "output_image_path: " << output_image_path << endl;
+	}
 }
 
 float Yolo::letterbox(
@@ -177,6 +181,7 @@ void Yolo::load_engine() {
 	iW = in_dims.d[3];
 
 	//打印输入维度
+	if (Yolo::is_log)
 	cout << "input dims: " << iB << " " << iC << " " << iH << " " << iW << endl;
 
 	in_size = 1;
@@ -252,92 +257,94 @@ void Yolo::load_engine() {
 	}
 
 	//打印buffs
+	if (Yolo::is_log)
 	cout << "buffs: " << in_size << " " << out_size1 << " " << out_size2 << " " << out_size3
 		<< " " << out_size4 << endl;
 	
 }
 
+// 构造函数，自动完成预处理
+PreprocessedImage  Yolo::PreprocessedImage(std::string image_path) {
+	
 
-	// 构造函数，自动完成预处理
-PreprocessedImage  Yolo::PreprocessedImage(int width, int height, int channel, unsigned char* data, int target_width, int target_height) {
-	// 创建原始图像
-	original_img = cv::Mat(height, width, CV_MAKETYPE(CV_8U, channel), data);
+	// int width, int height, int channel, unsigned char* data, int target_width, int target_height
+
+	PreprocessedImage preprocessed_image;
+
+	cv::Mat original_img;
+    preprocessed_image.original_img = cv::imread(image_path);
+
+	
+	// // 创建原始图像
+	// original_img = cv::Mat(height, width, CV_MAKETYPE(CV_8U, preprocessed_image.original_img.channels()), preprocessed_image.original_img.data);
 
 	// 预处理：调整大小并填充
-	scale = letterbox(original_img, processed_img, {target_width, target_height}, 32, {114, 114, 114}, true);
+	preprocessed_image.scale = letterbox(preprocessed_image.original_img, preprocessed_image.processed_img, {iW, iH}, 32, {114, 114, 114}, true);
 
 	// 转换为 RGB 格式
-	cv::cvtColor(processed_img, processed_img, cv::COLOR_BGR2RGB);
+	cv::cvtColor(preprocessed_image.processed_img, preprocessed_image.processed_img, cv::COLOR_BGR2RGB);
 
 	// 转换为 blob 数据
-	blob = blobFromImage(processed_img);
+	preprocessed_image.blob = blobFromImage(processed_img);
+
+	return preprocessed_image;
 }
 
 
-void Yolo::Infer(std::string source_path) {
+det_images Yolo::processing(det_image output){
 
-	// 判断source_path是图片还是文件夹路径
-	struct stat path_stat;
-	stat(source_path.c_str(), &path_stat);
-	bool is_directory = S_ISDIR(path_stat.st_mode);
+	det_images output_images;
+	//转换输出结果
+	output_images.BboxNum[0] = output.num_dets[0];
+	BboxNum[0] = num_dets[0];
 
-	if (is_directory) {
-		cout << "source_path is a directory." << endl;
-		// 处理文件夹中的所有图片
-		std::vector<std::string> image_files;
-		for (const auto& entry : std::filesystem::directory_iterator(source_path)) {
-			if (entry.is_regular_file()) {
-				std::string file_path = entry.path().string();
-				// cout << "Processing file: " << file_path << endl;
-				// 在这里可以调用推理处理每个文件
-				image_files.push_back(file_path);
-			}
-		}
-		
 
-	} else {
-		cout << "source_path is a file." << endl;
-		// // 处理单个图片文件
-		// cout << "Processing file: " << source_path << endl;
-		// // 在这里可以调用推理处理该文件
-		if (iB != 1) {
-			
-		}
+	
+	int img_w = img.cols;
+	int img_h = img.rows;
+	int x_offset = (iW * scale - img_w) / 2;
+	int y_offset = (iH * scale - img_h) / 2;
+	for (size_t i = 0; i < num_dets[0]; i++) {
+		float x0 = (det_boxes[i * 4]) * scale - x_offset;
+		float y0 = (det_boxes[i * 4 + 1]) * scale - y_offset;
+		float x1 = (det_boxes[i * 4 + 2]) * scale - x_offset;
+		float y1 = (det_boxes[i * 4 + 3]) * scale - y_offset;
+		x0 = std::max(std::min(x0, (float)(img_w - 1)), 0.f);
+		y0 = std::max(std::min(y0, (float)(img_h - 1)), 0.f);
+		x1 = std::max(std::min(x1, (float)(img_w - 1)), 0.f);
+		y1 = std::max(std::min(y1, (float)(img_h - 1)), 0.f);
+		Boxes[i * 4] = x0;
+		Boxes[i * 4 + 1] = y0;
+		Boxes[i * 4 + 2] = x1 - x0;
+		Boxes[i * 4 + 3] = y1 - y0;
+		ClassIndexs[i] = det_classes[i];
 	}
 
+	if (num_dets[0] > 0) {
+		cout << "Detections found: " << num_dets[0] << endl;
+	} else {
+		cout << "No detections found." << endl;
+	}
 
+	//打印Boxes 和class
+	if (Yolo::is_log) {
+		for (size_t i = 0; i < num_dets[0]; i++) {
+		cout << "Boxes: " << Boxes[i * 4] << " " << Boxes[i * 4 + 1] << " " << Boxes[i * 4 + 2] << " "
+			<< Boxes[i * 4 + 3] << " "
+			<< "ClassIndexs: " << ClassIndexs[i] << endl;
+		}
+		delete blob;
+	}
 
-	//根据iB的大小创建
-	cv::Mat img(aHeight, aWidth, CV_MAKETYPE(CV_8U, aChannel), aBytes);
-	cv::Mat pr_img;
-	float scale = letterbox(img, pr_img, {iW, iH}, 32, {114, 114, 114}, true);
-	cv::cvtColor(pr_img, pr_img, cv::COLOR_BGR2RGB);
-	float* blob = blobFromImage(pr_img);
+}
 
+det_image Yolo::inference(float* blob) {
+
+	det_image output;
 	static int* num_dets = new int[out_size1];
 	static float* det_boxes = new float[out_size2];
 	static float* det_scores = new float[out_size3];
 	static int* det_classes = new int[out_size4];
-
-
-
-
-	cv::Mat img(aHeight, aWidth, CV_MAKETYPE(CV_8U, aChannel), aBytes);
-	cv::Mat pr_img;
-	float scale = letterbox(img, pr_img, {iW, iH}, 32, {114, 114, 114}, true);
-	cv::cvtColor(pr_img, pr_img, cv::COLOR_BGR2RGB);
-	float* blob = blobFromImage(pr_img);
-
-	static int* num_dets = new int[out_size1];
-	static float* det_boxes = new float[out_size2];
-	static float* det_scores = new float[out_size3];
-	static int* det_classes = new int[out_size4];
-
-
-
-
-
-
 
 	context->setTensorAddress("images", buffs[0]);
 	context->setTensorAddress("num", buffs[1]);
@@ -364,68 +371,91 @@ void Yolo::Infer(std::string source_path) {
 
 	//取输出结果
 	state =
-		cudaMemcpyAsync(num_dets, buffs[1], out_size1 * sizeof(int), cudaMemcpyDeviceToHost, stream);
+		cudaMemcpyAsync(output.num_dets, buffs[1], out_size1 * sizeof(int), cudaMemcpyDeviceToHost, stream);
 	if (state) {
 		cout << "transmit to host failed \n";
 		std::abort();
 	}
 	state = cudaMemcpyAsync(
-		det_boxes, buffs[2], out_size2 * sizeof(float), cudaMemcpyDeviceToHost, stream);
+		output.det_boxes, buffs[2], out_size2 * sizeof(float), cudaMemcpyDeviceToHost, stream);
 	if (state) {
 		cout << "transmit to host failed \n";
 		std::abort();
 	}
 	state = cudaMemcpyAsync(
-		det_scores, buffs[3], out_size3 * sizeof(float), cudaMemcpyDeviceToHost, stream);
+		output.det_scores, buffs[3], out_size3 * sizeof(float), cudaMemcpyDeviceToHost, stream);
 	if (state) {
 		cout << "transmit to host failed \n";
 		std::abort();
 	}
 	state = cudaMemcpyAsync(
-		det_classes, buffs[4], out_size4 * sizeof(int), cudaMemcpyDeviceToHost, stream);
+		output.det_classes, buffs[4], out_size4 * sizeof(int), cudaMemcpyDeviceToHost, stream);
 	if (state) {
 		cout << "transmit to host failed \n";
 		std::abort();
 	}
+	return output;
+}
+
+void Yolo::Infer(std::string source_path) {
+
+	// 判断source_path是图片还是文件夹路径
+	struct stat path_stat;
+	stat(source_path.c_str(), &path_stat);
+	bool is_directory = S_ISDIR(path_stat.st_mode);
 
 
-	//转换输出结果
-	BboxNum[0] = num_dets[0];
-	int img_w = img.cols;
-	int img_h = img.rows;
-	int x_offset = (iW * scale - img_w) / 2;
-	int y_offset = (iH * scale - img_h) / 2;
-	for (size_t i = 0; i < num_dets[0]; i++) {
-		float x0 = (det_boxes[i * 4]) * scale - x_offset;
-		float y0 = (det_boxes[i * 4 + 1]) * scale - y_offset;
-		float x1 = (det_boxes[i * 4 + 2]) * scale - x_offset;
-		float y1 = (det_boxes[i * 4 + 3]) * scale - y_offset;
-		x0 = std::max(std::min(x0, (float)(img_w - 1)), 0.f);
-		y0 = std::max(std::min(y0, (float)(img_h - 1)), 0.f);
-		x1 = std::max(std::min(x1, (float)(img_w - 1)), 0.f);
-		y1 = std::max(std::min(y1, (float)(img_h - 1)), 0.f);
-		Boxes[i * 4] = x0;
-		Boxes[i * 4 + 1] = y0;
-		Boxes[i * 4 + 2] = x1 - x0;
-		Boxes[i * 4 + 3] = y1 - y0;
-		ClassIndexs[i] = det_classes[i];
-	}
+	if (iB < = 1) {
+		if (is_directory) {
+			cout << "source_path is a directory." << endl;
+			// 处理文件夹中的所有图片
+			std::vector<std::string> image_files;
+			for (const auto& entry : std::filesystem::directory_iterator(source_path)) {
+				if (entry.is_regular_file()) {
+					std::string file_path = entry.path().string();
+					// cout << "Processing file: " << file_path << endl;
+					// 在这里可以调用推理处理每个文件
+					image_files.push_back(file_path);
+				}
+			}
+			
 	
-	if (num_dets[0] > 0) {
-		cout << "Detections found: " << num_dets[0] << endl;
-	} else {
-		cout << "No detections found." << endl;
+		} else {
+			cout << "source_path is a file." << endl;
+			// // 处理单个图片文件
+			// cout << "Processing file: " << source_path << endl;
+			// // 在这里可以调用推理处理该文件
+
+			preprocessed_image = PreprocessedImage(source_path);
+			auto output = inference(preprocessed_image.blob);
+
+			draw_objects(preprocessed_image.original_img, Boxes, ClassIndexs, BboxNum);
+		}
+						
+	}else{
+
 	}
 
-	//打印Boxes 和class
-	if (Yolo::is_log) {
-		for (size_t i = 0; i < num_dets[0]; i++) {
-		cout << "Boxes: " << Boxes[i * 4] << " " << Boxes[i * 4 + 1] << " " << Boxes[i * 4 + 2] << " "
-			<< Boxes[i * 4 + 3] << " "
-			<< "ClassIndexs: " << ClassIndexs[i] << endl;
-		}
-		delete blob;
-	}
+	
+	// //根据iB的大小创建
+	// cv::Mat img(aHeight, aWidth, CV_MAKETYPE(CV_8U, aChannel), aBytes);
+	// cv::Mat pr_img;
+	// float scale = letterbox(img, pr_img, {iW, iH}, 32, {114, 114, 114}, true);
+	// cv::cvtColor(pr_img, pr_img, cv::COLOR_BGR2RGB);
+	// float* blob = blobFromImage(pr_img);
+
+	// static int* num_dets = new int[out_size1];
+	// static float* det_boxes = new float[out_size2];
+	// static float* det_scores = new float[out_size3];
+	// static int* det_classes = new int[out_size4];
+
+	// cv::Mat img(aHeight, aWidth, CV_MAKETYPE(CV_8U, aChannel), aBytes);
+	// cv::Mat pr_img;
+	// float scale = letterbox(img, pr_img, {iW, iH}, 32, {114, 114, 114}, true);
+	// cv::cvtColor(pr_img, pr_img, cv::COLOR_BGR2RGB);
+	// float* blob = blobFromImage(pr_img);
+
+	
 }
 
 Yolo::~Yolo() {
