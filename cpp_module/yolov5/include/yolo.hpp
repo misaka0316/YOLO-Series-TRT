@@ -35,6 +35,9 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <sys/stat.h>      // 提供 struct stat 和 S_ISDIR
+#include <filesystem>      // 提供 std::filesystem
+
 
 
 using nvinfer1::Dims2;
@@ -72,6 +75,8 @@ struct PreprocessedImage {
 	cv::Mat processed_img; // 预处理后的图像
 	float scale;           // 缩放比例
 	float* blob;           // 转换后的 blob 数据
+	int img_w;
+	int img_h;
 };
 
 struct det_image{
@@ -79,13 +84,16 @@ struct det_image{
 	float* det_boxes;
 	float* det_scores;
 	int* det_classes;
-}
+	int img_w;
+	int img_h;
+	float scale;
+};
 
 struct det_images{
 	float* Boxes = new float[4000];
     int* BboxNum = new int[1];
     int* ClassIndexs = new int[1000];
-}
+};
 
 
 class Yolo {
@@ -104,8 +112,9 @@ class Yolo {
 		void draw_objects(const cv::Mat& img, float* Boxes, int* ClassIndexs, int* BboxNum);
 		void Init(char* model_path, char* output_path, bool is_log);
 		void Infer(std::string source_path);
-		PreprocessedImage  PreprocessedImage(std::string source_path);
-		det_image Yolo::inference(float* blob);
+		PreprocessedImage  preprocessed_input(std::string source_path);
+		det_image inference(float* blob);
+		det_images processing(det_image output);
 		~Yolo();
    
     private:
@@ -121,7 +130,7 @@ class Yolo {
 		bool is_log = false;
 		std::vector<PreprocessedImage> preprocessed_images;
 		PreprocessedImage preprocessed_image;
-		det_images Yolo::processing(det_image output);
+		
 };
 
 

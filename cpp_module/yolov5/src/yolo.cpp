@@ -263,8 +263,8 @@ void Yolo::load_engine() {
 	
 }
 
-// 构造函数，自动完成预处理
-PreprocessedImage  Yolo::PreprocessedImage(std::string image_path) {
+
+PreprocessedImage  Yolo::preprocessed_input(std::string image_path) {
 	
 
 	// int width, int height, int channel, unsigned char* data, int target_width, int target_height
@@ -285,7 +285,9 @@ PreprocessedImage  Yolo::PreprocessedImage(std::string image_path) {
 	cv::cvtColor(preprocessed_image.processed_img, preprocessed_image.processed_img, cv::COLOR_BGR2RGB);
 
 	// 转换为 blob 数据
-	preprocessed_image.blob = blobFromImage(processed_img);
+	preprocessed_image.blob = blobFromImage(preprocessed_image.processed_img);
+	preprocessed_image.img_w = original_img.cols;
+	preprocessed_image.img_h = original_img.rows;
 
 	return preprocessed_image;
 }
@@ -296,46 +298,48 @@ det_images Yolo::processing(det_image output){
 	det_images output_images;
 	//转换输出结果
 	output_images.BboxNum[0] = output.num_dets[0];
-	BboxNum[0] = num_dets[0];
+	// BboxNum[0] = num_dets[0];
 
+	int img_w = output.img_w;
+	int img_h = output.img_h;
+	float scale = output.scale;
 
-	
-	int img_w = img.cols;
-	int img_h = img.rows;
 	int x_offset = (iW * scale - img_w) / 2;
 	int y_offset = (iH * scale - img_h) / 2;
-	for (size_t i = 0; i < num_dets[0]; i++) {
-		float x0 = (det_boxes[i * 4]) * scale - x_offset;
-		float y0 = (det_boxes[i * 4 + 1]) * scale - y_offset;
-		float x1 = (det_boxes[i * 4 + 2]) * scale - x_offset;
-		float y1 = (det_boxes[i * 4 + 3]) * scale - y_offset;
+	for (size_t i = 0; i < output.num_dets[0]; i++) {
+		float x0 = (output.det_boxes[i * 4]) * scale - x_offset;
+		float y0 = (output.det_boxes[i * 4 + 1]) * scale - y_offset;
+		float x1 = (output.det_boxes[i * 4 + 2]) * scale - x_offset;
+		float y1 = (output.det_boxes[i * 4 + 3]) * scale - y_offset;
 		x0 = std::max(std::min(x0, (float)(img_w - 1)), 0.f);
 		y0 = std::max(std::min(y0, (float)(img_h - 1)), 0.f);
 		x1 = std::max(std::min(x1, (float)(img_w - 1)), 0.f);
 		y1 = std::max(std::min(y1, (float)(img_h - 1)), 0.f);
-		Boxes[i * 4] = x0;
-		Boxes[i * 4 + 1] = y0;
-		Boxes[i * 4 + 2] = x1 - x0;
-		Boxes[i * 4 + 3] = y1 - y0;
-		ClassIndexs[i] = det_classes[i];
+		output_images.Boxes[i * 4] = x0;
+		output_images.Boxes[i * 4 + 1] = y0;
+		output_images.Boxes[i * 4 + 2] = x1 - x0;
+		output_images.Boxes[i * 4 + 3] = y1 - y0;
+		output_images.ClassIndexs[i] = output.det_classes[i];
 	}
 
-	if (num_dets[0] > 0) {
-		cout << "Detections found: " << num_dets[0] << endl;
-	} else {
-		cout << "No detections found." << endl;
-	}
 
 	//打印Boxes 和class
 	if (Yolo::is_log) {
-		for (size_t i = 0; i < num_dets[0]; i++) {
-		cout << "Boxes: " << Boxes[i * 4] << " " << Boxes[i * 4 + 1] << " " << Boxes[i * 4 + 2] << " "
-			<< Boxes[i * 4 + 3] << " "
-			<< "ClassIndexs: " << ClassIndexs[i] << endl;
+
+		if (output.num_dets[0] > 0) {
+			cout << "Detections found: " << output.num_dets[0] << endl;
+		} else {
+			cout << "No detections found." << endl;
 		}
-		delete blob;
+
+		for (size_t i = 0; i < output.num_dets[0]; i++) {
+		cout << "Boxes: " << output_images.Boxes[i * 4] << " " << output_images.Boxes[i * 4 + 1] << " " << output_images.Boxes[i * 4 + 2] << " "
+			<< output_images.Boxes[i * 4 + 3] << " "
+			<< "ClassIndexs: " << output_images.ClassIndexs[i] << endl;
+		}
 	}
 
+	return output_images;
 }
 
 det_image Yolo::inference(float* blob) {
@@ -394,6 +398,10 @@ det_image Yolo::inference(float* blob) {
 		cout << "transmit to host failed \n";
 		std::abort();
 	}
+	delete blob;
+	output.img_h = preprocessed_image.img_h;
+	output.img_w = preprocessed_image.img_w;
+	output.scale = preprocessed_image.scale;
 	return output;
 }
 
@@ -405,7 +413,7 @@ void Yolo::Infer(std::string source_path) {
 	bool is_directory = S_ISDIR(path_stat.st_mode);
 
 
-	if (iB < = 1) {
+	if (iB <= 1) {
 		if (is_directory) {
 			cout << "source_path is a directory." << endl;
 			// 处理文件夹中的所有图片
@@ -426,10 +434,10 @@ void Yolo::Infer(std::string source_path) {
 			// cout << "Processing file: " << source_path << endl;
 			// // 在这里可以调用推理处理该文件
 
-			preprocessed_image = PreprocessedImage(source_path);
+			preprocessed_image = preprocessed_input(source_path);
 			auto output = inference(preprocessed_image.blob);
-
-			draw_objects(preprocessed_image.original_img, Boxes, ClassIndexs, BboxNum);
+			auto output_images = processing(output);
+			draw_objects(preprocessed_image.original_img, output_images.Boxes, output_images.ClassIndexs, output_images.BboxNum);
 		}
 						
 	}else{

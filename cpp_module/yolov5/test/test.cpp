@@ -30,7 +30,7 @@ int main(int argc, char** argv) {
     std::string output_path = config.value("output_path", "");
     std::string test_flag = config.value("test_flag", "");
 
-    if (model_path.empty() || image_path.empty()) {
+    if (model_path.empty() || source_path.empty()) {
       std::cerr << "Invalid configuration: model_path or image_path is missing" << std::endl;
       return -1;
     }
@@ -51,18 +51,18 @@ int main(int argc, char** argv) {
 
     if(test_flag == "true"){
 
-    for (int num = 0; num < 2; num++) {
-      yolo.Infer(img.cols, img.rows, img.channels(), img.data, Boxes, ClassIndexs, BboxNum);
-    }
+    // for (int num = 0; num < 2; num++) {
+    //   yolo.Infer(img.cols, img.rows, img.channels(), img.data, Boxes, ClassIndexs, BboxNum);
+    // }
 
-      auto start = std::chrono::system_clock::now();
+    //   auto start = std::chrono::system_clock::now();
 
-      yolo.Infer(img.cols, img.rows, img.channels(), img.data, Boxes, ClassIndexs, BboxNum);
+    //   yolo.Infer(img.cols, img.rows, img.channels(), img.data, Boxes, ClassIndexs, BboxNum);
 
-      auto end = std::chrono::system_clock::now();
-      std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
+    //   auto end = std::chrono::system_clock::now();
+    //   std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
       
-      yolo.draw_objects(img, Boxes, ClassIndexs, BboxNum);
+    //   yolo.draw_objects(img, Boxes, ClassIndexs, BboxNum);
     }
 
     //打印完成推理

@@ -5,7 +5,7 @@ project(yolo)
 # 使用动态库链接到CUDA
 option(CUDA_USE_STATIC_CUDA_RUNTIME OFF)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_BUILD_TYPE Release)
 
 # set(CMAKE_BUILD_TYPE Debug)
@@ -37,6 +37,7 @@ target_link_libraries(yolo
     nvinfer_plugin
     cudart
     ${OpenCV_LIBS}
+    -lstdc++fs
 )
 
 add_definitions(-O2 -pthread)
