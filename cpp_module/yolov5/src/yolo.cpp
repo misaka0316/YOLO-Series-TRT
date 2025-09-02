@@ -271,7 +271,7 @@ PreprocessedImage  Yolo::preprocessed_input(std::string image_path) {
 
 	PreprocessedImage preprocessed_image;
 
-	cv::Mat original_img;
+	// cv::Mat original_img;
     preprocessed_image.original_img = cv::imread(image_path);
 
 	
@@ -286,8 +286,8 @@ PreprocessedImage  Yolo::preprocessed_input(std::string image_path) {
 
 	// 转换为 blob 数据
 	preprocessed_image.blob = blobFromImage(preprocessed_image.processed_img);
-	preprocessed_image.img_w = original_img.cols;
-	preprocessed_image.img_h = original_img.rows;
+	preprocessed_image.img_w = preprocessed_image.original_img.cols;
+	preprocessed_image.img_h = preprocessed_image.original_img.rows;
 
 	return preprocessed_image;
 }
@@ -435,9 +435,12 @@ void Yolo::Infer(std::string source_path) {
 			// // 在这里可以调用推理处理该文件
 
 			preprocessed_image = preprocessed_input(source_path);
+			std::cout << "processed_img: " <<preprocessed_image.processed_img.size() << std::endl;
+			cv::imwrite("output1.jpg", preprocessed_image.processed_img);
 			auto output = inference(preprocessed_image.blob);
-			auto output_images = processing(output);
-			draw_objects(preprocessed_image.original_img, output_images.Boxes, output_images.ClassIndexs, output_images.BboxNum);
+			
+			// auto output_images = processing(output);
+			// draw_objects(preprocessed_image.original_img, output_images.Boxes, output_images.ClassIndexs, output_images.BboxNum);
 		}
 						
 	}else{
