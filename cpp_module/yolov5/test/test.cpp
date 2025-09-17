@@ -29,7 +29,9 @@ int main(int argc, char** argv) {
     std::string source_path = config.value("source_path", "");
     std::string output_path = config.value("output_path", "");
     std::string test_flag = config.value("test_flag", "");
-
+    
+    std::cout << "output_path: " << output_path << std::endl;
+ 
     if (model_path.empty() || source_path.empty()) {
       std::cerr << "Invalid configuration: model_path or image_path is missing" << std::endl;
       return -1;

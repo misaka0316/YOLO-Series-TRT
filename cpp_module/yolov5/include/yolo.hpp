@@ -79,14 +79,50 @@ struct PreprocessedImage {
 	int img_h;
 };
 
-struct det_image{
-	int* num_dets;
-	float* det_boxes;
-	float* det_scores;
-	int* det_classes;
-	int img_w;
-	int img_h;
-	float scale;
+// struct det_image{
+
+// 	int* num_dets;
+// 	float* det_boxes;
+// 	float* det_scores;
+// 	int* det_classes;
+
+// 	det_image(int out_size1, int out_size2, int out_size3, int out_size4) {
+// 		num_dets = new int[out_size1];
+// 		det_boxes = new float[out_size2];
+// 		det_scores = new float[out_size3];
+// 		det_classes = new int[out_size4];
+// 	}
+
+// 	// int* num_dets;
+// 	// float* det_boxes;
+// 	// float* det_scores;
+// 	// int* det_classes;
+
+// 	int img_w;
+// 	int img_h;
+// 	float scale;
+// };
+
+struct det_image {
+    std::vector<int> num_dets;
+    std::vector<float> det_boxes;
+    std::vector<float> det_scores;
+    std::vector<int> det_classes;
+
+    int img_w;
+    int img_h;
+    float scale;
+
+    // 默认构造函数
+    det_image() = default;
+
+    // 初始化函数
+    void initialize(int out_size1, int out_size2, int out_size3, int out_size4) {
+        num_dets.resize(out_size1);
+        det_boxes.resize(out_size2);
+        det_scores.resize(out_size3);
+        det_classes.resize(out_size4);
+    }
 };
 
 struct det_images{
@@ -109,7 +145,7 @@ class Yolo {
 			bool fixed_shape,
 			bool scale_up);
 		float* blobFromImage(cv::Mat& img);
-		void draw_objects(const cv::Mat& img, float* Boxes, int* ClassIndexs, int* BboxNum);
+		void draw_objects(const cv::Mat& img, float* Boxes, int* ClassIndexs, int* BboxNum, std::string image_name);
 		void Init(char* model_path, char* output_path, bool is_log);
 		void Infer(std::string source_path);
 		PreprocessedImage  preprocessed_input(std::string source_path);
@@ -126,7 +162,7 @@ class Yolo {
 		int iB, iC, iH, iW, in_size, out_size1, out_size2, out_size3, out_size4;
 		Logger gLogger;
 		std::string model_path;
-		std::string output_image_path;
+		std::string output_path;
 		bool is_log = false;
 		std::vector<PreprocessedImage> preprocessed_images;
 		PreprocessedImage preprocessed_image;

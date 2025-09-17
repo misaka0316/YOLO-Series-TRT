@@ -66,12 +66,12 @@ void Yolo::Init(char* model_path,char* output_path, bool is_log = false) {
     }
 
     Yolo::model_path = model_path;
-    Yolo::output_image_path = output_image_path;
+    Yolo::output_path = output_path;
 
     //打印模型路径 输出路径
 	if (Yolo::is_log){
     	cout << "model_path: " << model_path << endl;
-    	cout << "output_image_path: " << output_image_path << endl;
+    	cout << "output_path: " << output_path << endl;
 	}
 }
 
@@ -136,7 +136,7 @@ float* Yolo::blobFromImage(cv::Mat& img) {
   return blob;
 }
 
-void Yolo::draw_objects(const cv::Mat& img, float* Boxes, int* ClassIndexs, int* BboxNum) {
+void Yolo::draw_objects(const cv::Mat& img, float* Boxes, int* ClassIndexs, int* BboxNum, std::string image_name) {
   for (int j = 0; j < BboxNum[0]; j++) {
     cv::Rect rect(Boxes[j * 4], Boxes[j * 4 + 1], Boxes[j * 4 + 2], Boxes[j * 4 + 3]);
     cv::rectangle(img, rect, cv::Scalar(0x27, 0xC1, 0x36), 2);
@@ -148,8 +148,11 @@ void Yolo::draw_objects(const cv::Mat& img, float* Boxes, int* ClassIndexs, int*
         1.2,
         cv::Scalar(0xFF, 0xFF, 0xFF),
         2);
-    cv::imwrite(Yolo::output_image_path, img);
   }
+  std::string output_file = Yolo::output_path + "/" + image_name;
+//   std::cout << "save output to " << output_file << std::endl;
+  cv::imwrite(output_file, img);
+
 }
 
 void Yolo::load_engine() {
@@ -263,7 +266,6 @@ void Yolo::load_engine() {
 	
 }
 
-
 PreprocessedImage  Yolo::preprocessed_input(std::string image_path) {
 	
 
@@ -345,10 +347,11 @@ det_images Yolo::processing(det_image output){
 det_image Yolo::inference(float* blob) {
 
 	det_image output;
-	static int* num_dets = new int[out_size1];
-	static float* det_boxes = new float[out_size2];
-	static float* det_scores = new float[out_size3];
-	static int* det_classes = new int[out_size4];
+	output.initialize(out_size1, out_size2, out_size3, out_size4);
+	// static int* num_dets = new int[out_size1];
+	// static float* det_boxes = new float[out_size2];
+	// static float* det_scores = new float[out_size3];
+	// static int* det_classes = new int[out_size4];
 
 	context->setTensorAddress("images", buffs[0]);
 	context->setTensorAddress("num", buffs[1]);
@@ -375,30 +378,36 @@ det_image Yolo::inference(float* blob) {
 
 	//取输出结果
 	state =
-		cudaMemcpyAsync(output.num_dets, buffs[1], out_size1 * sizeof(int), cudaMemcpyDeviceToHost, stream);
+		cudaMemcpyAsync(output.num_dets.data(), buffs[1], out_size1 * sizeof(int), cudaMemcpyDeviceToHost, stream);
+	if (state) {
+		cout << "num_dets: transmit to host failed \n";
+		std::abort();
+	}
+
+	state = cudaMemcpyAsync(
+		output.det_boxes.data(), buffs[2], out_size2 * sizeof(float), cudaMemcpyDeviceToHost, stream);
 	if (state) {
 		cout << "transmit to host failed \n";
 		std::abort();
 	}
 	state = cudaMemcpyAsync(
-		output.det_boxes, buffs[2], out_size2 * sizeof(float), cudaMemcpyDeviceToHost, stream);
+		output.det_scores.data(), buffs[3], out_size3 * sizeof(float), cudaMemcpyDeviceToHost, stream);
 	if (state) {
 		cout << "transmit to host failed \n";
 		std::abort();
 	}
 	state = cudaMemcpyAsync(
-		output.det_scores, buffs[3], out_size3 * sizeof(float), cudaMemcpyDeviceToHost, stream);
-	if (state) {
-		cout << "transmit to host failed \n";
-		std::abort();
-	}
-	state = cudaMemcpyAsync(
-		output.det_classes, buffs[4], out_size4 * sizeof(int), cudaMemcpyDeviceToHost, stream);
+		output.det_classes.data(), buffs[4], out_size4 * sizeof(int), cudaMemcpyDeviceToHost, stream);
 	if (state) {
 		cout << "transmit to host failed \n";
 		std::abort();
 	}
 	delete blob;
+	// output.num_dets = num_dets;
+	// output.det_boxes = det_boxes;
+	// output.det_scores = det_scores;
+	// output.det_classes = det_classes;
+
 	output.img_h = preprocessed_image.img_h;
 	output.img_w = preprocessed_image.img_w;
 	output.scale = preprocessed_image.scale;
@@ -411,7 +420,6 @@ void Yolo::Infer(std::string source_path) {
 	struct stat path_stat;
 	stat(source_path.c_str(), &path_stat);
 	bool is_directory = S_ISDIR(path_stat.st_mode);
-
 
 	if (iB <= 1) {
 		if (is_directory) {
@@ -430,20 +438,21 @@ void Yolo::Infer(std::string source_path) {
 	
 		} else {
 			cout << "source_path is a file." << endl;
-			// // 处理单个图片文件
-			// cout << "Processing file: " << source_path << endl;
-			// // 在这里可以调用推理处理该文件
+
+			std::string image_name = std::filesystem::path(source_path).filename().string();
 
 			preprocessed_image = preprocessed_input(source_path);
-			std::cout << "processed_img: " <<preprocessed_image.processed_img.size() << std::endl;
-			cv::imwrite("output1.jpg", preprocessed_image.processed_img);
+			// std::cout << "processed_img: " <<preprocessed_image.processed_img.size() << std::endl;
+			// cv::imwrite("output1.jpg", preprocessed_image.processed_img);
 			auto output = inference(preprocessed_image.blob);
 			
-			// auto output_images = processing(output);
-			// draw_objects(preprocessed_image.original_img, output_images.Boxes, output_images.ClassIndexs, output_images.BboxNum);
+			auto output_images = processing(output);
+			draw_objects(preprocessed_image.original_img, output_images.Boxes, output_images.ClassIndexs, output_images.BboxNum, image_name);
 		}
 						
-	}else{
+	}
+	
+	if(iB > 1){
 
 	}
 
@@ -470,6 +479,7 @@ void Yolo::Infer(std::string source_path) {
 }
 
 Yolo::~Yolo() {
+
   // cudaStreamSynchronize(stream);
   // if (buffs[0]) cudaFree(buffs[0]);
   // if (buffs[1]) cudaFree(buffs[1]);
@@ -491,4 +501,5 @@ Yolo::~Yolo() {
   // context->destroy();
   // engine->destroy();
   // runtime->destroy();
+
 }
