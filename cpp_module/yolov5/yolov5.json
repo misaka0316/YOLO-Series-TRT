@@ -1,6 +1,6 @@
 {
     "model_path": "../../engine/policeman.plan",
-    "source_path": "../../images/4.jpg",
+    "source_path": "/home/misaka/Desktop/YOLO-Series-TRT/images",
     "output_path" : "/home/misaka/Desktop/YOLO-Series-TRT/cpp_module/yolov5/build/",
     "test_flag": "false"
   }

@@ -429,12 +429,26 @@ void Yolo::Infer(std::string source_path) {
 			for (const auto& entry : std::filesystem::directory_iterator(source_path)) {
 				if (entry.is_regular_file()) {
 					std::string file_path = entry.path().string();
-					// cout << "Processing file: " << file_path << endl;
-					// 在这里可以调用推理处理每个文件
-					image_files.push_back(file_path);
+					// 判断文件是否是图片
+					std::string extension = std::filesystem::path(file_path).extension().string();
+					std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
+					if (extension == ".jpg" || extension == ".jpeg" || extension == ".png" || extension == ".bmp") {
+						image_files.push_back(file_path);		
+					}
 				}
 			}
-			
+
+			// 打印image_files
+			for (const auto& file : image_files) {
+				cout << "Image file: " << file << endl;
+				preprocessed_image = preprocessed_input(file);
+				auto output = inference(preprocessed_image.blob);
+				
+				auto output_images = processing(output);
+				std::string image_name = std::filesystem::path(file).filename().string();
+				draw_objects(preprocessed_image.original_img, output_images.Boxes, output_images.ClassIndexs, output_images.BboxNum, image_name);
+
+			}
 	
 		} else {
 			cout << "source_path is a file." << endl;
@@ -448,12 +462,11 @@ void Yolo::Infer(std::string source_path) {
 			
 			auto output_images = processing(output);
 			draw_objects(preprocessed_image.original_img, output_images.Boxes, output_images.ClassIndexs, output_images.BboxNum, image_name);
-		}
-						
+		}				
 	}
 	
 	if(iB > 1){
-
+		
 	}
 
 	
