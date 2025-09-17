@@ -437,7 +437,6 @@ void Yolo::Infer(std::string source_path) {
 					}
 				}
 			}
-
 			// 打印image_files
 			for (const auto& file : image_files) {
 				cout << "Image file: " << file << endl;
@@ -466,6 +465,15 @@ void Yolo::Infer(std::string source_path) {
 	}
 	
 	if(iB > 1){
+		if (is_directory) {
+			cout << "source_path is a directory." << endl;
+		
+			
+		}else{
+
+		}
+
+
 		
 	}
 
@@ -488,7 +496,6 @@ void Yolo::Infer(std::string source_path) {
 	// cv::cvtColor(pr_img, pr_img, cv::COLOR_BGR2RGB);
 	// float* blob = blobFromImage(pr_img);
 
-	
 }
 
 Yolo::~Yolo() {
