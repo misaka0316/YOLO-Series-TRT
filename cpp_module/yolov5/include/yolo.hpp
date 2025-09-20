@@ -70,51 +70,31 @@ class Logger : public ILogger {
 		}
    };
 
-struct PreprocessedImage {
-	cv::Mat original_img;  // 原始图像
-	cv::Mat processed_img; // 预处理后的图像
-	float scale;           // 缩放比例
-	float* blob;           // 转换后的 blob 数据
+
+struct images_message
+{
+	std::string image_name; // 图像文件名
 	int img_w;
 	int img_h;
+	float scale;
+};
+   
+struct PreprocessedImage {
+	cv::Mat original_img;  	// 原始图像
+	cv::Mat processed_img; 	// 预处理后的图像
+	
+	float* blob;           	// 转换后的 blob 数据
+	images_message img_message;
 };
 
-// struct det_image{
-
-// 	int* num_dets;
-// 	float* det_boxes;
-// 	float* det_scores;
-// 	int* det_classes;
-
-// 	det_image(int out_size1, int out_size2, int out_size3, int out_size4) {
-// 		num_dets = new int[out_size1];
-// 		det_boxes = new float[out_size2];
-// 		det_scores = new float[out_size3];
-// 		det_classes = new int[out_size4];
-// 	}
-
-// 	// int* num_dets;
-// 	// float* det_boxes;
-// 	// float* det_scores;
-// 	// int* det_classes;
-
-// 	int img_w;
-// 	int img_h;
-// 	float scale;
-// };
-
-struct det_image {
+struct infer_middle_output {
     std::vector<int> num_dets;
     std::vector<float> det_boxes;
     std::vector<float> det_scores;
     std::vector<int> det_classes;
 
-    int img_w;
-    int img_h;
-    float scale;
-
     // 默认构造函数
-    det_image() = default;
+    infer_middle_output() = default;
 
     // 初始化函数
     void initialize(int out_size1, int out_size2, int out_size3, int out_size4) {
@@ -149,8 +129,8 @@ class Yolo {
 		void Init(char* model_path, char* output_path, bool is_log);
 		void Infer(std::string source_path);
 		PreprocessedImage  preprocessed_input(std::string source_path);
-		det_image inference(float* blob);
-		det_images processing(det_image output);
+		infer_middle_output inference(float* blob);
+		det_images processing(infer_middle_output middle_output, images_message img_message);
 		~Yolo();
    
     private:

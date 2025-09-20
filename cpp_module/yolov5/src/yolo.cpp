@@ -281,38 +281,44 @@ PreprocessedImage  Yolo::preprocessed_input(std::string image_path) {
 	// original_img = cv::Mat(height, width, CV_MAKETYPE(CV_8U, preprocessed_image.original_img.channels()), preprocessed_image.original_img.data);
 
 	// 预处理：调整大小并填充
-	preprocessed_image.scale = letterbox(preprocessed_image.original_img, preprocessed_image.processed_img, {iW, iH}, 32, {114, 114, 114}, true);
+	preprocessed_image.img_message.scale = letterbox(preprocessed_image.original_img, preprocessed_image.processed_img, {iW, iH}, 32, {114, 114, 114}, true);
 
 	// 转换为 RGB 格式
 	cv::cvtColor(preprocessed_image.processed_img, preprocessed_image.processed_img, cv::COLOR_BGR2RGB);
 
 	// 转换为 blob 数据
 	preprocessed_image.blob = blobFromImage(preprocessed_image.processed_img);
-	preprocessed_image.img_w = preprocessed_image.original_img.cols;
-	preprocessed_image.img_h = preprocessed_image.original_img.rows;
+
+	// //清空preprocessed_image.processed_img
+	// preprocessed_image.processed_img.release();
+
+	preprocessed_image.img_message.img_w = preprocessed_image.original_img.cols;
+	preprocessed_image.img_message.img_h = preprocessed_image.original_img.rows;
+
+	std::string image_name = std::filesystem::path(image_path).filename().string();
+	preprocessed_image.img_message.image_name = image_name;
 
 	return preprocessed_image;
 }
 
-
-det_images Yolo::processing(det_image output){
+det_images Yolo::processing(infer_middle_output middle_output, images_message img_message) {
 
 	det_images output_images;
 	//转换输出结果
-	output_images.BboxNum[0] = output.num_dets[0];
+	output_images.BboxNum[0] = middle_output.num_dets[0];
 	// BboxNum[0] = num_dets[0];
 
-	int img_w = output.img_w;
-	int img_h = output.img_h;
-	float scale = output.scale;
+	int img_w = img_message.img_w;
+	int img_h = img_message.img_h;
+	float scale = img_message.scale;
 
 	int x_offset = (iW * scale - img_w) / 2;
 	int y_offset = (iH * scale - img_h) / 2;
-	for (size_t i = 0; i < output.num_dets[0]; i++) {
-		float x0 = (output.det_boxes[i * 4]) * scale - x_offset;
-		float y0 = (output.det_boxes[i * 4 + 1]) * scale - y_offset;
-		float x1 = (output.det_boxes[i * 4 + 2]) * scale - x_offset;
-		float y1 = (output.det_boxes[i * 4 + 3]) * scale - y_offset;
+	for (size_t i = 0; i < middle_output.num_dets[0]; i++) {
+		float x0 = (middle_output.det_boxes[i * 4]) * scale - x_offset;
+		float y0 = (middle_output.det_boxes[i * 4 + 1]) * scale - y_offset;
+		float x1 = (middle_output.det_boxes[i * 4 + 2]) * scale - x_offset;
+		float y1 = (middle_output.det_boxes[i * 4 + 3]) * scale - y_offset;
 		x0 = std::max(std::min(x0, (float)(img_w - 1)), 0.f);
 		y0 = std::max(std::min(y0, (float)(img_h - 1)), 0.f);
 		x1 = std::max(std::min(x1, (float)(img_w - 1)), 0.f);
@@ -321,32 +327,30 @@ det_images Yolo::processing(det_image output){
 		output_images.Boxes[i * 4 + 1] = y0;
 		output_images.Boxes[i * 4 + 2] = x1 - x0;
 		output_images.Boxes[i * 4 + 3] = y1 - y0;
-		output_images.ClassIndexs[i] = output.det_classes[i];
+		output_images.ClassIndexs[i] = middle_output.det_classes[i];
 	}
-
 
 	//打印Boxes 和class
 	if (Yolo::is_log) {
 
-		if (output.num_dets[0] > 0) {
-			cout << "Detections found: " << output.num_dets[0] << endl;
+		if (middle_output.num_dets[0] > 0) {
+			cout << "Detections found: " << middle_output.num_dets[0] << endl;
 		} else {
 			cout << "No detections found." << endl;
 		}
 
-		for (size_t i = 0; i < output.num_dets[0]; i++) {
+		for (size_t i = 0; i < middle_output.num_dets[0]; i++) {
 		cout << "Boxes: " << output_images.Boxes[i * 4] << " " << output_images.Boxes[i * 4 + 1] << " " << output_images.Boxes[i * 4 + 2] << " "
 			<< output_images.Boxes[i * 4 + 3] << " "
 			<< "ClassIndexs: " << output_images.ClassIndexs[i] << endl;
 		}
 	}
-
 	return output_images;
 }
 
-det_image Yolo::inference(float* blob) {
+infer_middle_output Yolo::inference(float* blob) {
 
-	det_image output;
+	infer_middle_output output;
 	output.initialize(out_size1, out_size2, out_size3, out_size4);
 	// static int* num_dets = new int[out_size1];
 	// static float* det_boxes = new float[out_size2];
@@ -407,10 +411,6 @@ det_image Yolo::inference(float* blob) {
 	// output.det_boxes = det_boxes;
 	// output.det_scores = det_scores;
 	// output.det_classes = det_classes;
-
-	output.img_h = preprocessed_image.img_h;
-	output.img_w = preprocessed_image.img_w;
-	output.scale = preprocessed_image.scale;
 	return output;
 }
 
@@ -440,13 +440,14 @@ void Yolo::Infer(std::string source_path) {
 			// 打印image_files
 			for (const auto& file : image_files) {
 				cout << "Image file: " << file << endl;
+
 				preprocessed_image = preprocessed_input(file);
+
 				auto output = inference(preprocessed_image.blob);
 				
-				auto output_images = processing(output);
-				std::string image_name = std::filesystem::path(file).filename().string();
-				draw_objects(preprocessed_image.original_img, output_images.Boxes, output_images.ClassIndexs, output_images.BboxNum, image_name);
-
+				auto output_images = processing(output, preprocessed_image.img_message);
+				
+				draw_objects(preprocessed_image.original_img, output_images.Boxes, output_images.ClassIndexs, output_images.BboxNum, preprocessed_image.img_message.image_name);
 			}
 	
 		} else {
@@ -459,15 +460,90 @@ void Yolo::Infer(std::string source_path) {
 			// cv::imwrite("output1.jpg", preprocessed_image.processed_img);
 			auto output = inference(preprocessed_image.blob);
 			
-			auto output_images = processing(output);
-			draw_objects(preprocessed_image.original_img, output_images.Boxes, output_images.ClassIndexs, output_images.BboxNum, image_name);
+			auto output_images = processing(output, preprocessed_image.img_message);
+			draw_objects(preprocessed_image.original_img, output_images.Boxes, output_images.ClassIndexs, output_images.BboxNum, preprocessed_image.img_message.image_name);
 		}				
 	}
 	
 	if(iB > 1){
 		if (is_directory) {
 			cout << "source_path is a directory." << endl;
-		
+			// 处理文件夹中的所有图片
+			std::vector<std::string> image_files;
+			for (const auto& entry : std::filesystem::directory_iterator(source_path)) {
+				if (entry.is_regular_file()) {
+					std::string file_path = entry.path().string();
+					// 判断文件是否是图片
+					std::string extension = std::filesystem::path(file_path).extension().string();
+					std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
+					if (extension == ".jpg" || extension == ".jpeg" || extension == ".png" || extension == ".bmp") {
+						image_files.push_back(file_path);		
+					}
+				}
+			}
+
+			std::vector<PreprocessedImage> batch_preprocessed_images;
+			for (size_t i = 0; i < image_files.size(); i += iB) {
+				batch_preprocessed_images.clear();
+				for (size_t j = 0; j < iB; ++j) {
+					if (i + j < image_files.size()) {
+						batch_preprocessed_images.push_back(preprocessed_input(image_files[i + j]));
+					} else {
+						// Create a dummy image with zeros to pad the batch
+						batch_preprocessed_images.push_back(batch_preprocessed_images.back());
+
+						// PreprocessedImage dummy_image = batch_preprocessed_images.back();
+
+
+						// dummy_image.original_img = cv::Mat::zeros(preprocessed_image.img_h, preprocessed_image.img_w, CV_8UC3);
+						// dummy_image.processed_img = cv::Mat::zeros(iH, iW, CV_8UC3);
+						// dummy_image.blob = blobFromImage(dummy_image.processed_img);
+						// dummy_image.img_w = 0;
+						// dummy_image.img_h = 0;
+						// dummy_image.scale = 1.0f;
+						// batch_preprocessed_images.push_back(dummy_image);
+					}
+				}
+
+				// Combine blobs into a single batch blob
+				float* batch_blob = new float[iB * iC * iH * iW];
+				for (size_t b = 0; b < iB; ++b) {
+					std::memcpy(
+						batch_blob + b * iC * iH * iW,
+						batch_preprocessed_images[b].blob,
+						iC * iH * iW * sizeof(float));
+				}
+
+				auto output = inference(batch_blob);
+
+				for (size_t b = 0; b < iB; ++b) {
+					if (i + b < image_files.size()) {
+
+						infer_middle_output output_1;
+						output_1.initialize(1, 400, 100, 100);
+						output_1.num_dets[0] = output.num_dets[b];
+						// output_1.det_boxes = output.det_boxes[b*400:(b+1)*400];
+						output_1.det_boxes = std::vector<float>(
+							output.det_boxes.begin() + b * 400,
+							output.det_boxes.begin() + (b + 1) * 400
+						);
+						output_1.det_scores = std::vector<float>(
+							output.det_scores.begin() + b * 100,
+							output.det_scores.begin() + (b + 1) * 100
+						);
+						output_1.det_classes = std::vector<int>(
+							output.det_classes.begin() + b * 100,
+							output.det_classes.begin() + (b + 1) * 100
+						);	
+
+
+						auto output_images = processing(output_1, batch_preprocessed_images[b].img_message);
+						
+						draw_objects(batch_preprocessed_images[b].original_img, output_images.Boxes, output_images.ClassIndexs, output_images.BboxNum, batch_preprocessed_images[b].img_message.image_name);
+					}
+				}
+			}
+
 			
 		}else{
 
