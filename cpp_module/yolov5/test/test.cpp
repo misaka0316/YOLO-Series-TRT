@@ -28,46 +28,21 @@ int main(int argc, char** argv) {
     std::string model_path = config.value("model_path", "");
     std::string source_path = config.value("source_path", "");
     std::string output_path = config.value("output_path", "");
-    std::string test_flag = config.value("test_flag", "");
-    
-    std::cout << "output_path: " << output_path << std::endl;
+    std::string log_test = config.value("log_test", "");
+    std::string draw_objects = config.value("draw_objects", "");
+    bool log_test_bool = (log_test == "true"); 
  
     if (model_path.empty() || source_path.empty()) {
       std::cerr << "Invalid configuration: model_path or image_path is missing" << std::endl;
       return -1;
     }
 
-    // float* Boxes = new float[4000];
-    // int* BboxNum = new int[1];
-    // int* ClassIndexs = new int[1000];
-
     Yolo yolo;
-    yolo.Init(const_cast<char*>(model_path.c_str()),const_cast<char*>(output_path.c_str()), true); // Initialize the Yolo object with model path and logging enabled
+    yolo.Init(const_cast<char*>(model_path.c_str()),const_cast<char*>(output_path.c_str()), log_test_bool); // Initialize the Yolo object with model path and logging enabled
     yolo.load_engine(); // Load the TensorRT engine
-
-    
-    // cv::Mat img;
-    // img = cv::imread(image_path);
 
     yolo.Infer(source_path);
 
-    if(test_flag == "true"){
-
-    // for (int num = 0; num < 2; num++) {
-    //   yolo.Infer(img.cols, img.rows, img.channels(), img.data, Boxes, ClassIndexs, BboxNum);
-    // }
-
-    //   auto start = std::chrono::system_clock::now();
-
-    //   yolo.Infer(img.cols, img.rows, img.channels(), img.data, Boxes, ClassIndexs, BboxNum);
-
-    //   auto end = std::chrono::system_clock::now();
-    //   std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
-      
-    //   yolo.draw_objects(img, Boxes, ClassIndexs, BboxNum);
-    }
-
-    //打印完成推理
     std::cout << "--> Inference completed!" << std::endl;
   } else {
     std::cerr << "--> arguments not right!" << std::endl;

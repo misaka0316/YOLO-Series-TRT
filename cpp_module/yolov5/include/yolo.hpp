@@ -68,8 +68,7 @@ class Logger : public ILogger {
 			std::cout << msg << std::endl;
 		}
 		}
-   };
-
+};
 
 struct images_message
 {
@@ -111,7 +110,6 @@ struct det_images{
     int* ClassIndexs = new int[1000];
 };
 
-
 class Yolo {
     public:
 		Yolo() = default;
@@ -148,14 +146,5 @@ class Yolo {
 		PreprocessedImage preprocessed_image;
 		
 };
-
-
-// int aWidth,
-// int aHeight,
-// int aChannel,
-// unsigned char* aBytes,
-// float* Boxes,
-// int* ClassIndexs,
-// int* BboxNum
 
 #endif // YOLO_HPP

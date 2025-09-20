@@ -1,7 +1,8 @@
 {
-    "model_path": "../../engine/yolov5n.plan",
-    "source_path": "/home/misaka/Desktop/YOLO-Series-TRT/images",
-    "output_path" : "/home/misaka/Desktop/YOLO-Series-TRT/cpp_module/yolov5/build",
-    "test_flag": "false"
+    "model_path": "../../engine/last-2batch.plan",
+    "source_path": "/home/misaka/Desktop/data/YOLO-Series-TRT/images",
+    "output_path" : "/home/misaka/Desktop/data/YOLO-Series-TRT/cpp_module/yolov5/build",
+    "log_test": "false",
+    "draw_objects": "true"
   }
   
